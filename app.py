@@ -1,15 +1,12 @@
 import os
 from dotenv import load_dotenv
-from openai import OpenAI
 from flask import Flask, request, jsonify, render_template
+
 from db import init_db, save_to_db, fetch_all_stories, fetch_story_by_id, update_story, delete_story
+from module2 import generate_code_for_user_story  # <--- Import your function
 
 # Load environment variables from .env
 load_dotenv()
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-# Get the OpenAI API key
 
 app = Flask(__name__)
 
@@ -19,36 +16,47 @@ def index():
 
 @app.route('/submit', methods=['POST'])
 def submit_user_story():
+    """
+    Receives a user story (with priority and notes),
+    generates code using module2.generate_code_for_user_story,
+    saves it to the database, and returns the generated code.
+    """
     user_story = request.form['userStory']
     priority = request.form['priority']
     notes = request.form.get('notes', '')
 
-    # Process user story with OpenAI API
-    response = client.chat.completions.create(model="gpt-4",
-    messages=[
-        {"role": "system", "content": "You are an assistant that processes user stories into actionable items."},
-        {"role": "user", "content": f"User Story: {user_story}\nPriority: {priority}\nNotes: {notes}"}
-    ])
+    # Combine user input into a prompt or direct string
+    # (module2.generate_code_for_user_story can handle just the story, or the full details)
+    prompt = f"User Story: {user_story}\nPriority: {priority}\nNotes: {notes}"
 
-    actionable_items = response.choices[0].message.content
+    # 1. Generate code using Module 2
+    generated_code = generate_code_for_user_story(prompt)
 
-    # Save data to the database
-    save_to_db(user_story, priority, notes, actionable_items)
+    # 2. Save data to the database
+    #    Here we store the 'generated_code' in place of the "actionable_items" column
+    save_to_db(user_story, priority, notes, generated_code)
 
+    # 3. Return JSON response
     return jsonify({
         "user_story": user_story,
         "priority": priority,
         "notes": notes,
-        "actionable_items": actionable_items
+        "generated_code": generated_code
     })
 
 @app.route('/stories', methods=['GET'])
 def view_stories():
+    """
+    Returns all user stories from the database in JSON format.
+    """
     records = fetch_all_stories()
-    return jsonify(records)  # Return all stories as JSON
+    return jsonify(records)
 
 @app.route('/stories/<int:story_id>', methods=['GET'])
 def view_story(story_id):
+    """
+    Returns a specific story by ID, or a 404 if it doesn't exist.
+    """
     record = fetch_story_by_id(story_id)
     if record:
         return jsonify(record)
@@ -57,4 +65,3 @@ def view_story(story_id):
 if __name__ == '__main__':
     init_db()
     app.run(debug=True)
-
