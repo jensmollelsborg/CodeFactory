@@ -98,6 +98,54 @@ def clean_code_block(generated_code: str) -> str:
 
     return code
 
+def prepare_prompt(user_story, existing_code):
+    return f"""
+You are given an existing codebase:
+
+[Existing Code]
+{existing_code}
+
+The user story is:
+{user_story}
+
+Please modify the existing code to fulfill the user story. 
+Include docstrings, follow best practices, and only change the relevant parts.
+"""
+
+def generate_updated_code(user_story: str, existing_code: str) -> str:
+    """
+    Takes the user story and existing code as context.
+    Returns an updated version of the code that fulfills the new requirement.
+    """
+    system_message = (
+        "You are an AI coding assistant. Modify the given code to fulfill the user story."
+    )
+    user_message = f"""
+    Existing code:
+    {existing_code}
+
+    The user story is:
+    {user_story}
+
+    Please update the existing code to fulfill this requirement, preserving existing functionality.
+    Only change what is necessary.
+    Return code only.
+    """
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",  # or "gpt-4" if you have access
+            messages=[
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message},
+            ],
+            max_tokens=2000,
+            temperature=0
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"Error generating updated code: {e}")
+        return ""
+
 if __name__ == "__main__":
     # Example usage
 
