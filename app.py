@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, abort
 from db import init_db, save_to_db, fetch_all_stories, fetch_story_by_id
 from code_gen_lib import generate_code_for_user_story, clean_code_block, generate_updated_code
 from git_lib import clone_or_open_repo, create_unique_branch_and_push, create_pull_request, base_branch, parse_github_url
@@ -9,6 +9,28 @@ from git_lib import clone_or_open_repo, create_unique_branch_and_push, create_pu
 load_dotenv()
 
 app = Flask(__name__)
+
+def validate_user_story_input(data):
+    """
+    Validates the user story submission data.
+    Returns (is_valid, error_message).
+    """
+    if not data.get('userStory'):
+        return False, "User story is required"
+    
+    if len(data['userStory']) > 1000:
+        return False, "User story is too long (max 1000 characters)"
+    
+    if not data.get('priority'):
+        return False, "Priority is required"
+        
+    if data['priority'] not in ['low', 'medium', 'high']:
+        return False, "Priority must be one of: low, medium, high"
+    
+    if len(data.get('notes', '')) > 2000:
+        return False, "Notes are too long (max 2000 characters)"
+        
+    return True, None
 
 @app.route('/')
 def index():
@@ -22,16 +44,29 @@ def submit_user_story():
        Otherwise, generate code from scratch.
     3. Saves code to the database and, if needed, commits changes.
     """
+    # Validate input
+    is_valid, error_message = validate_user_story_input(request.form)
+    if not is_valid:
+        return jsonify({"error": error_message}), 400
+        
     user_story = request.form['userStory']
     priority = request.form['priority']
     notes = request.form.get('notes', '')
-    repository_input = request.form['repository']
+    repository_input = request.form.get('repository', '').strip()
 
     # Create a human-readable prompt or user story context
     full_prompt = f"User Story: {user_story}\nPriority: {priority}\nNotes: {notes}"
 
     # Determine if 'repository_input' is a GitHub URL
-    if repository_input.startswith("http://") or repository_input.startswith("https://") or repository_input.startswith("git@"):
+    if repository_input:
+        try:
+            if not (repository_input.startswith("http://") or 
+                   repository_input.startswith("https://") or 
+                   repository_input.startswith("git@")):
+                return jsonify({"error": "Invalid repository URL format"}), 400
+        except Exception as e:
+            return jsonify({"error": "Invalid repository URL format"}), 400
+
         # ============== FLOW #1: ADAPT EXISTING REPO + CREATE PR ====================
         commit_message = "Adapt existing code for new user story"
         pr_branch = "feature/user-story-update"

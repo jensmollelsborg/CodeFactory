@@ -3,52 +3,106 @@ import os
 from dotenv import load_dotenv
 from github import Github
 import datetime
+import re
 
 load_dotenv()
 
 base_branch = os.getenv("BASE_BRANCH")
 
+def validate_github_url(url: str) -> bool:
+    """
+    Validates if the given URL is a valid GitHub repository URL.
+    Supports both HTTPS and SSH formats.
+    """
+    if not url:
+        return False
+        
+    # HTTPS format: https://github.com/owner/repo[.git]
+    https_pattern = r'^https?://github\.com/[\w.-]+/[\w.-]+(?:\.git)?$'
+    
+    # SSH format: git@github.com:owner/repo[.git]
+    ssh_pattern = r'^git@github\.com:[\w.-]+/[\w.-]+(?:\.git)?$'
+    
+    return bool(re.match(https_pattern, url) or re.match(ssh_pattern, url))
+
 def parse_github_url(github_url: str) -> (str, str):
     """
-    Extract 'owner' and 'repo_name' from a GitHub URL like:
-    https://github.com/owner/repo_name.git
-    or
-    git@github.com:owner/repo_name.git
+    Extract 'owner' and 'repo_name' from a GitHub URL.
+    Supports HTTPS format: https://github.com/owner/repo_name.git
+    and SSH format: git@github.com:owner/repo_name.git
 
-    Returns (owner, repo_name_without_dotgit)
+    Args:
+        github_url (str): The GitHub repository URL
+
+    Returns:
+        tuple: (owner, repo_name_without_dotgit)
+
+    Raises:
+        ValueError: If the URL is invalid or cannot be parsed
     """
+    if not validate_github_url(github_url):
+        raise ValueError(f"Invalid GitHub URL format: {github_url}")
+
     # Remove possible endings like ".git"
     cleaned_url = github_url.replace(".git", "")
-    # The core part might be after "github.com/" or "github.com:"
-    # e.g. "https://github.com/owner/repo" -> segments after github.com/ is "owner/repo"
-    # or "git@github.com:owner/repo" -> after "github.com:" is "owner/repo"
-    if "github.com/" in cleaned_url:
-        parts = cleaned_url.split("github.com/")[-1]
-    elif "github.com:" in cleaned_url:
-        parts = cleaned_url.split("github.com:")[-1]
-    else:
-        # If your URL doesn't match these patterns, adapt as needed
-        raise ValueError(f"Cannot parse GitHub URL: {github_url}")
+    
+    try:
+        # The core part might be after "github.com/" or "github.com:"
+        if "github.com/" in cleaned_url:
+            parts = cleaned_url.split("github.com/")[-1]
+        elif "github.com:" in cleaned_url:
+            parts = cleaned_url.split("github.com:")[-1]
+        else:
+            raise ValueError(f"Cannot parse GitHub URL: {github_url}")
 
-    owner, repo_name = parts.split("/", 1)
-    return owner, repo_name
+        if not parts or '/' not in parts:
+            raise ValueError(f"Invalid GitHub URL format: {github_url}")
+
+        owner, repo_name = parts.split("/", 1)
+        
+        if not owner or not repo_name:
+            raise ValueError(f"Invalid GitHub URL format: {github_url}")
+            
+        return owner, repo_name
+    except Exception as e:
+        raise ValueError(f"Error parsing GitHub URL: {github_url}. Error: {str(e)}")
 
 def clone_or_open_repo(repo_url: str, local_name: str = "default_repo"):
     """
     Clones a GitHub repository if not present locally,
     otherwise opens the existing one.
-    Returns (repo, repo_path).
-    """
-    repo_dir = os.getenv("REPO_DIR")
-    repo_path = os.path.join(repo_dir, local_name)
-    if not os.path.exists(repo_path):
-        print(f"Cloning {repo_url} into {repo_path}...")
-        git.Repo.clone_from(repo_url, repo_path)
-    else:
-        print(f"Repository already exists at {repo_path}.")
 
-    repo = git.Repo(repo_path)
-    return repo, repo_path
+    Args:
+        repo_url (str): The GitHub repository URL
+        local_name (str): Name for the local repository directory
+
+    Returns:
+        tuple: (repo, repo_path)
+
+    Raises:
+        ValueError: If the repository URL is invalid
+        git.exc.GitCommandError: If there's an error with Git operations
+    """
+    if not validate_github_url(repo_url):
+        raise ValueError(f"Invalid GitHub repository URL: {repo_url}")
+
+    repo_dir = os.getenv("REPO_DIR")
+    if not repo_dir:
+        raise ValueError("REPO_DIR environment variable is not set")
+
+    repo_path = os.path.join(repo_dir, local_name)
+    
+    try:
+        if not os.path.exists(repo_path):
+            print(f"Cloning {repo_url} into {repo_path}...")
+            git.Repo.clone_from(repo_url, repo_path)
+        else:
+            print(f"Repository already exists at {repo_path}.")
+
+        repo = git.Repo(repo_path)
+        return repo, repo_path
+    except git.exc.GitCommandError as e:
+        raise ValueError(f"Git operation failed: {str(e)}")
 
 def commit_changes(repo, commit_message="Update code for user story"):
     """
