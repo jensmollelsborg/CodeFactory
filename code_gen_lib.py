@@ -78,6 +78,26 @@ def generate_code_for_actionable_items(actionable_items: str) -> str:
         print(f"Error generating code for actionable items: {e}")
         return ""
 
+def clean_code_block(generated_code: str) -> str:
+    """
+    Removes triple-backtick fences (```python ... ```).
+    Keeps only the Python code.
+    """
+    code = generated_code.strip()
+
+    # Remove any leading triple backticks and optional language spec
+    if code.startswith("```"):
+        lines = code.split("\n")
+        # Drop the first line (which might be ```python or just ```)
+        lines = lines[1:]
+        code = "\n".join(lines)
+
+    # Remove any trailing triple backticks
+    if code.endswith("```"):
+        code = code.rsplit("```", 1)[0].strip()
+
+    return code
+
 if __name__ == "__main__":
     # Example usage
 
