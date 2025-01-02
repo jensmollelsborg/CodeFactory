@@ -6,6 +6,7 @@ from openai import OpenAI
 load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+openai_model = os.getenv("OPENAI_MODEL")  # Define local variable for OpenAI model
 
 def generate_code_for_user_story(user_story: str) -> str:
     """
@@ -28,7 +29,7 @@ def generate_code_for_user_story(user_story: str) -> str:
 
     try:
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",  # or "gpt-4" if you have access
+            model=openai_model,  # Use local variable for model
             messages=[
                 {"role": "system", "content": system_message},
                 {"role": "user", "content": user_message},
@@ -62,7 +63,7 @@ def generate_code_for_actionable_items(actionable_items: str) -> str:
 
     try:
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",  # or "gpt-4"
+            model=openai_model,  # Use local variable for model
             messages=[
                 {"role": "system", "content": system_message},
                 {"role": "user", "content": user_message}
@@ -133,7 +134,7 @@ def generate_updated_code(user_story: str, existing_code: str) -> str:
     """
     try:
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",  # or "gpt-4" if you have access
+            model=openai_model,  # Use local variable for model
             messages=[
                 {"role": "system", "content": system_message},
                 {"role": "user", "content": user_message},
