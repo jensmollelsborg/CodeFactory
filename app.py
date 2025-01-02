@@ -67,7 +67,7 @@ def submit_user_story():
             repo=repo,
             base_branch=base_branch,  # default branch
             file_path=main_py_path,
-            updated_code=updated_code,
+            updated_code=updated_cleaned_code,
             commit_message=commit_message
         )
 
