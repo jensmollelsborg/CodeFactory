@@ -70,7 +70,8 @@ def parse_github_url(github_url: str) -> (str, str):
 def clone_or_open_repo(repo_url: str, local_name: str = "default_repo"):
     """
     Clones a GitHub repository if not present locally,
-    otherwise opens the existing one.
+    otherwise opens the existing one. Ensures the repository
+    is on the default branch.
 
     Args:
         repo_url (str): The GitHub repository URL
@@ -95,11 +96,22 @@ def clone_or_open_repo(repo_url: str, local_name: str = "default_repo"):
     try:
         if not os.path.exists(repo_path):
             print(f"Cloning {repo_url} into {repo_path}...")
-            git.Repo.clone_from(repo_url, repo_path)
+            repo = git.Repo.clone_from(repo_url, repo_path)
         else:
             print(f"Repository already exists at {repo_path}.")
+            repo = git.Repo(repo_path)
 
-        repo = git.Repo(repo_path)
+        # Fetch from remote to ensure we have the latest state
+        print("Fetching latest changes from remote...")
+        repo.remotes.origin.fetch()
+
+        # Get the default remote branch
+        print(f"Default branch is: {base_branch}")
+
+        # Checkout the default branch
+        repo.git.checkout(base_branch)
+        print(f"Checked out {base_branch}")
+
         return repo, repo_path
     except git.exc.GitCommandError as e:
         raise ValueError(f"Git operation failed: {str(e)}")
