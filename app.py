@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from flask import Flask, request, jsonify, render_template
 from db import init_db, save_to_db, fetch_all_stories, fetch_story_by_id
 from code_gen_lib import generate_code_for_user_story, clean_code_block, generate_updated_code
-from git_lib import clone_or_open_repo, create_unique_branch_and_push, create_pull_request, base_branch
+from git_lib import clone_or_open_repo, create_unique_branch_and_push, create_pull_request, base_branch, parse_github_url
 
 # Load environment variables from .env
 load_dotenv()
@@ -38,9 +38,14 @@ def submit_user_story():
         pr_title = f"User Story Update: {user_story[:30]}..."  # keep it short
         pr_body = f"Implements changes to fulfill user story:\n\n{user_story}\n\nPriority: {priority}\nNotes: {notes}"
 
-        # 1. Clone/Open the repository (use a local name, e.g., "existing_repo")
+        # Extract the remote repo name from the URL
+        owner, remote_repo_name = parse_github_url(repository_input)
+        
+        # Use the parsed repo name for the local directory
+        repo_name_local = remote_repo_name
+
+        # 1. Clone/Open the repository (use the remote name)
         #    We’ll store it in repos/existing_repo
-        repo_name_local = "existing_repo"  # or derive from URL if you wish
         repo, repo_path = clone_or_open_repo(repository_input, repo_name_local)
 
         # 2. Decide which file(s) to adapt. For example, "main.py"
