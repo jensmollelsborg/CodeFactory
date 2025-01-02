@@ -37,7 +37,7 @@ def _make_openai_request(messages: list, max_tokens: int = 400) -> Optional[str]
         Generated text or None if all retries fail
         
     Raises:
-        Exception: If the API request fails
+        CodeGenerationError: If the API request fails after all retries
     """
     try:
         response = client.chat.completions.create(
@@ -49,7 +49,7 @@ def _make_openai_request(messages: list, max_tokens: int = 400) -> Optional[str]
         return response.choices[0].message.content.strip()
     except Exception as e:
         logger.error(f"OpenAI API request failed: {str(e)}")
-        raise
+        return None
 
 def _generate_code_with_template(
     template_name: str,
@@ -137,3 +137,73 @@ def clean_code_block(generated_code: str) -> str:
         code = code.rsplit("```", 1)[0].strip()
 
     return code
+
+def validate_generated_code(code: str) -> bool:
+    """
+    Validate generated code for basic Python syntax.
+    
+    Args:
+        code: Generated code to validate
+        
+    Returns:
+        True if code is valid Python, False otherwise
+    """
+    try:
+        compile(code, "<string>", "exec")
+        return True
+    except SyntaxError:
+        return False
+
+def refactor_code(code: str, refactoring_goals: str) -> str:
+    """
+    Refactor existing code based on specified goals.
+    
+    Args:
+        code: Existing code to refactor
+        refactoring_goals: Description of refactoring goals
+        
+    Returns:
+        Refactored code
+        
+    Raises:
+        CodeGenerationError: If refactoring fails
+    """
+    generated = _generate_code_with_template(
+        "refactor_code",
+        refactoring_goals,
+        existing_code=code,
+        max_tokens=2000
+    )
+    
+    cleaned = clean_code_block(generated)
+    if not validate_generated_code(cleaned):
+        raise CodeGenerationError("Generated code contains syntax errors")
+    
+    return cleaned
+
+def fix_bug(code: str, bug_description: str) -> str:
+    """
+    Fix bugs in existing code.
+    
+    Args:
+        code: Code containing the bug
+        bug_description: Description of the bug to fix
+        
+    Returns:
+        Fixed code
+        
+    Raises:
+        CodeGenerationError: If bug fixing fails
+    """
+    generated = _generate_code_with_template(
+        "fix_bug",
+        bug_description,
+        existing_code=code,
+        max_tokens=2000
+    )
+    
+    cleaned = clean_code_block(generated)
+    if not validate_generated_code(cleaned):
+        raise CodeGenerationError("Generated code contains syntax errors")
+    
+    return cleaned
