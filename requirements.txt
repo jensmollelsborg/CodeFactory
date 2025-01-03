@@ -1,0 +1,15 @@
+# Web framework
+flask>=2.0.0
+
+# Environment and configuration
+python-dotenv>=0.19.0
+
+# AI/Code Generation
+openai>=1.0.0
+
+# Git operations
+GitPython>=3.1.0
+PyGithub>=1.55
+
+# File handling
+pathspec>=0.11.0

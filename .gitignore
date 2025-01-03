@@ -1,5 +1,5 @@
 .env
 *.db
-__pycache__/*
 repos/*
 .DS_Store
+**/__pycache__/
