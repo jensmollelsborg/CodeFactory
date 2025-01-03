@@ -98,9 +98,13 @@ def clone_or_open_repo(repo_url: str, local_name: str = "default_repo") -> Tuple
         # Get the default remote branch
         logger.info(f"Default branch is: {base_branch}")
 
-        # Checkout the default branch
+        # Checkout and pull the default branch
         repo.git.checkout(base_branch)
         logger.info(f"Checked out {base_branch}")
+        
+        # Pull latest changes
+        logger.info(f"Pulling latest changes from {base_branch}...")
+        repo.remotes.origin.pull(base_branch)
 
         return repo, repo_path
         
