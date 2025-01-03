@@ -25,13 +25,24 @@ TEMPLATES = {
         2. Follow PEP 8 style guidelines
         3. Include error handling
         4. Write modular, reusable code
-        5. Add appropriate logging""",
+        5. Add appropriate logging
+        6. Organize code into appropriate files and modules
+        7. Return a JSON object mapping file paths to code content
+        8. Use descriptive file names that reflect their purpose""",
         user_template="""
         The user wants the following feature:
         {requirement}
 
         Write a Python program that fulfills this requirement.
         Use best practices, docstrings, and clear code structure.
+        Organize the code into appropriate files and modules.
+        Return a JSON object where keys are file paths and values are the file contents.
+        Example format:
+        {
+            "main.py": "content of main.py",
+            "utils/helpers.py": "content of helpers.py",
+            "models/user.py": "content of user.py"
+        }
         """
     ),
     "update_code": PromptTemplate(
@@ -41,55 +52,20 @@ TEMPLATES = {
         2. Maintain code style consistency
         3. Add appropriate error handling
         4. Update docstrings and comments
-        5. Only change what is necessary""",
+        5. Only change what is necessary
+        6. Return a JSON object mapping file paths to updated code content
+        7. Create new files if needed for better code organization""",
         user_template="""
-        Existing code:
+        Existing codebase (JSON object mapping file paths to code):
         {existing_code}
 
         The user story is:
         {requirement}
 
-        Please update the existing code to fulfill this requirement, preserving existing functionality.
+        Please update the existing codebase to fulfill this requirement, preserving existing functionality.
         Only change what is necessary.
-        Return code only.
-        """
-    ),
-    "refactor_code": PromptTemplate(
-        system_message="""You are an AI coding assistant. Refactor the given code to improve its quality.
-        Follow these guidelines:
-        1. Improve code organization
-        2. Remove code duplication
-        3. Enhance readability
-        4. Add type hints and docstrings
-        5. Follow SOLID principles""",
-        user_template="""
-        Code to refactor:
-        {existing_code}
-
-        Refactoring goals:
-        {requirement}
-
-        Please refactor the code to meet these goals while maintaining functionality.
-        Return code only.
-        """
-    ),
-    "fix_bug": PromptTemplate(
-        system_message="""You are an AI coding assistant. Fix bugs in the given code.
-        Follow these guidelines:
-        1. Identify the root cause
-        2. Add appropriate error handling
-        3. Add validation where needed
-        4. Add logging for debugging
-        5. Add comments explaining the fix""",
-        user_template="""
-        Buggy code:
-        {existing_code}
-
-        Bug description:
-        {requirement}
-
-        Please fix the bug while maintaining existing functionality.
-        Return code only.
+        Return a JSON object where keys are file paths and values are the updated file contents.
+        You may create new files if needed for better code organization.
         """
     )
 }
