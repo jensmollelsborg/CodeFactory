@@ -16,7 +16,8 @@ from codefactory.services.git_operations import (
     parse_github_url,
     clone_or_open_repo,
     create_unique_branch_and_push,
-    create_pull_request
+    create_pull_request,
+    get_user_repositories
 )
 from codefactory.services.database import init_db, save_to_db, fetch_all_stories, fetch_story_by_id
 from codefactory.utils.validation import validate_user_story_input
@@ -223,6 +224,18 @@ def generate_new_code(
         notes=notes,
         repository_folder="generated"
     )
+
+@app.route('/api/repositories')
+def get_repositories():
+    """Get list of GitHub repositories accessible to the user."""
+    try:
+        repositories = get_user_repositories()
+        return jsonify({"repositories": repositories})
+    except GitOperationError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.error(f"Unexpected error fetching repositories: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/stories', methods=['GET'])
 def view_stories():

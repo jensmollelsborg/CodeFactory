@@ -50,6 +50,48 @@
         h1 {
             text-align: center;
         }
+        .repo-select-container {
+            position: relative;
+        }
+        .repo-search {
+            margin-bottom: 10px;
+        }
+        .repo-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: white;
+        }
+        .repo-item {
+            padding: 8px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+        }
+        .repo-item:hover {
+            background-color: #f0f0f0;
+        }
+        .repo-item .name {
+            font-weight: bold;
+        }
+        .repo-item .description {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .error {
+            color: #d32f2f;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #d32f2f;
+            border-radius: 4px;
+            background-color: #ffebee;
+        }
     </style>
 </head>
 <body>
@@ -69,12 +111,79 @@
             <label for="notes">Additional Notes:</label>
             <textarea id="notes" name="notes" rows="3"></textarea>
 
-            <!-- New Repository field -->
             <label for="repository">Repository:</label>
-            <input id="repository" name="repository" type="text" placeholder="Enter repository name" required />
+            <div class="repo-select-container">
+                <input type="text" id="repoSearch" class="repo-search" placeholder="Search repositories...">
+                <input type="hidden" id="repository" name="repository" required>
+                <div id="repoList" class="repo-list" style="display: none;"></div>
+            </div>
 
             <button type="submit">Submit</button>
         </form>
     </div>
+
+    <script>
+        let repositories = [];
+        const repoSearch = document.getElementById('repoSearch');
+        const repoList = document.getElementById('repoList');
+        const repoInput = document.getElementById('repository');
+
+        // Fetch repositories when the page loads
+        window.addEventListener('load', fetchRepositories);
+
+        // Show repo list when clicking the search box
+        repoSearch.addEventListener('focus', () => {
+            repoList.style.display = 'block';
+            filterRepositories();
+        });
+
+        // Hide repo list when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.repo-select-container')) {
+                repoList.style.display = 'none';
+            }
+        });
+
+        // Filter repositories when typing
+        repoSearch.addEventListener('input', filterRepositories);
+
+        function fetchRepositories() {
+            repoList.innerHTML = '<div class="loading">Loading repositories...</div>';
+            
+            fetch('/api/repositories')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    repositories = data.repositories;
+                    filterRepositories();
+                })
+                .catch(error => {
+                    repoList.innerHTML = `<div class="error">${error.message}</div>`;
+                });
+        }
+
+        function filterRepositories() {
+            const searchTerm = repoSearch.value.toLowerCase();
+            const filtered = repositories.filter(repo => 
+                repo.full_name.toLowerCase().includes(searchTerm) ||
+                (repo.description && repo.description.toLowerCase().includes(searchTerm))
+            );
+
+            repoList.innerHTML = filtered.map(repo => `
+                <div class="repo-item" onclick="selectRepository('${repo.url}', '${repo.full_name}')">
+                    <div class="name">${repo.full_name}</div>
+                    ${repo.description ? `<div class="description">${repo.description}</div>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function selectRepository(url, fullName) {
+            repoInput.value = url;
+            repoSearch.value = fullName;
+            repoList.style.display = 'none';
+        }
+    </script>
 </body>
 </html>

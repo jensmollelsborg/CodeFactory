@@ -4,7 +4,7 @@ import os
 import git
 import datetime
 from github import Github
-from typing import Tuple
+from typing import Tuple, List, Dict
 from dotenv import load_dotenv
 
 from ..core.exceptions import GitOperationError
@@ -207,3 +207,49 @@ def create_pull_request(
         
     except Exception as e:
         raise GitOperationError(f"Failed to create pull request: {str(e)}")
+
+def get_user_repositories() -> List[Dict[str, str]]:
+    """
+    Fetch list of repositories accessible to the authenticated user.
+    Includes both user's repositories and those they have access to.
+    
+    Returns:
+        List of dictionaries containing repository information:
+        [{"name": "repo-name", "full_name": "owner/repo", "url": "https://github.com/owner/repo"}]
+        
+    Raises:
+        GitOperationError: If unable to fetch repositories
+    """
+    github_token = os.getenv("GITHUB_TOKEN")
+    if not github_token:
+        raise GitOperationError("GITHUB_TOKEN environment variable is not set")
+        
+    try:
+        # Initialize GitHub client
+        gh = Github(github_token)
+        user = gh.get_user()
+        
+        # Get repositories the user has access to
+        repos = []
+        logger.info("Fetching user repositories...")
+        
+        # Add user's own repositories
+        for repo in user.get_repos():
+            repos.append({
+                "name": repo.name,
+                "full_name": repo.full_name,
+                "url": repo.html_url,
+                "description": repo.description or "",
+                "private": repo.private,
+                "fork": repo.fork,
+                "updated_at": repo.updated_at.isoformat() if repo.updated_at else None
+            })
+            
+        # Sort repositories by name
+        repos.sort(key=lambda x: x["full_name"].lower())
+        
+        logger.info(f"Found {len(repos)} repositories")
+        return repos
+        
+    except Exception as e:
+        raise GitOperationError(f"Failed to fetch repositories: {str(e)}")
