@@ -1,5 +1,7 @@
 .env
 *.db
+*.pem
 repos/*
 .DS_Store
 **/__pycache__/
+**/flask_session/

@@ -4,8 +4,9 @@ import os
 import git
 import datetime
 from github import Github
-from typing import Tuple
+from typing import Tuple, List, Dict
 from dotenv import load_dotenv
+from flask import session
 
 from ..core.exceptions import GitOperationError
 from ..utils.validation import validate_github_url
@@ -19,6 +20,63 @@ logger = get_logger(__name__)
 
 # Get configuration
 base_branch = os.getenv("BASE_BRANCH", "main")
+
+def get_github_client() -> Github:
+    """
+    Get an authenticated GitHub client using the session token.
+    
+    Returns:
+        Github: Authenticated GitHub client
+        
+    Raises:
+        GitOperationError: If no GitHub token is found in session
+    """
+    token = session.get('github_token', {}).get('access_token')
+    if not token:
+        raise GitOperationError("No GitHub token found. Please sign in.")
+    return Github(token)
+
+def get_user_repositories() -> List[Dict[str, str]]:
+    """
+    Fetch list of repositories accessible to the authenticated user.
+    Includes both user's repositories and those they have access to.
+    
+    Returns:
+        List of dictionaries containing repository information:
+        [{"name": "repo-name", "full_name": "owner/repo", "url": "https://github.com/owner/repo"}]
+        
+    Raises:
+        GitOperationError: If unable to fetch repositories
+    """
+    try:
+        # Initialize GitHub client with session token
+        gh = get_github_client()
+        user = gh.get_user()
+        
+        # Get repositories the user has access to
+        repos = []
+        logger.info("Fetching user repositories...")
+        
+        # Add user's own repositories
+        for repo in user.get_repos():
+            repos.append({
+                "name": repo.name,
+                "full_name": repo.full_name,
+                "url": repo.html_url,
+                "description": repo.description or "",
+                "private": repo.private,
+                "fork": repo.fork,
+                "updated_at": repo.updated_at.isoformat() if repo.updated_at else None
+            })
+            
+        # Sort repositories by name
+        repos.sort(key=lambda x: x["full_name"].lower())
+        
+        logger.info(f"Found {len(repos)} repositories")
+        return repos
+        
+    except Exception as e:
+        raise GitOperationError(f"Failed to fetch repositories: {str(e)}")
 
 def parse_github_url(github_url: str) -> Tuple[str, str]:
     """
@@ -74,28 +132,41 @@ def clone_or_open_repo(repo_url: str, local_name: str = "default_repo") -> Tuple
     Raises:
         GitOperationError: If repository operations fail
     """
-    if not validate_github_url(repo_url):
-        raise GitOperationError(f"Invalid GitHub repository URL: {repo_url}")
-
-    repo_dir = os.getenv("REPO_DIR")
-    if not repo_dir:
-        raise GitOperationError("REPO_DIR environment variable is not set")
-
-    repo_path = os.path.join(repo_dir, local_name)
-    
     try:
+        # Get GitHub token from session
+        token = session.get('github_token', {}).get('access_token')
+        if not token:
+            raise GitOperationError("No GitHub token found. Please sign in.")
+
+        # Parse repository URL
+        owner, repo_name = parse_github_url(repo_url)
+        
+        # Create repository path
+        repo_dir = os.getenv("REPO_DIR", "repositories")
+        repo_path = os.path.join(repo_dir, local_name)
+        
+        # Ensure repository directory exists
+        os.makedirs(repo_dir, exist_ok=True)
+        
         if not os.path.exists(repo_path):
-            logger.info(f"Cloning {repo_url} into {repo_path}...")
-            repo = git.Repo.clone_from(repo_url, repo_path)
+            # Clone repository
+            logger.info(f"Cloning repository from {repo_url} to {repo_path}")
+            # Use token in clone URL for authentication
+            auth_url = f"https://{token}@github.com/{owner}/{repo_name}.git"
+            repo = git.Repo.clone_from(auth_url, repo_path)
         else:
+            # Open existing repository
             logger.info(f"Opening existing repository at {repo_path}")
             repo = git.Repo(repo_path)
+            # Update remote URL with token
+            auth_url = f"https://{token}@github.com/{owner}/{repo_name}.git"
+            repo.remotes.origin.set_url(auth_url)
 
         # Fetch from remote to ensure we have the latest state
         logger.info("Fetching latest changes from remote...")
         repo.remotes.origin.fetch()
 
-        # Get the default remote branch
+        # Get the default branch
         logger.info(f"Default branch is: {base_branch}")
 
         # Checkout and pull the default branch
@@ -186,14 +257,11 @@ def create_pull_request(
     Raises:
         GitOperationError: If PR creation fails
     """
-    token = os.getenv("GITHUB_TOKEN")
-    if not token:
-        raise GitOperationError("GITHUB_TOKEN is not set. Cannot create pull request.")
-
     try:
-        g = Github(token)
+        # Initialize GitHub client with session token
+        gh = get_github_client()
         owner, repo_name = parse_github_url(repo_url)
-        gh_repo = g.get_repo(f"{owner}/{repo_name}")
+        gh_repo = gh.get_repo(f"{owner}/{repo_name}")
 
         pull = gh_repo.create_pull(
             title=pr_title,
