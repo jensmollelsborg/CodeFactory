@@ -69,3 +69,120 @@ TEMPLATES = {
         """
     )
 }
+
+"""Templates for code generation prompts."""
+
+# Base template for all code changes
+BASE_TEMPLATE = """
+You are tasked with implementing code changes based on the following request:
+
+{user_story}
+
+Context:
+- Repository: {repo_name}
+- Base Branch: {base_branch}
+- Priority: {priority}
+- Type: {change_type}
+{additional_notes}
+
+Please follow these guidelines:
+1. Write clean, maintainable code
+2. Follow the project's coding style
+3. Include appropriate error handling
+4. Add necessary tests
+5. Update documentation as needed
+
+Current codebase context:
+{codebase_context}
+"""
+
+# Template for feature requests
+FEATURE_REQUEST_TEMPLATE = """
+{base_template}
+
+Feature Implementation Guidelines:
+1. Design the feature to be modular and extensible
+2. Consider future maintenance and scalability
+3. Add appropriate validation and error handling
+4. Include user feedback mechanisms where appropriate
+5. Document the new functionality
+6. Add unit tests for the new feature
+7. Consider performance implications
+
+Expected Deliverables:
+1. Implementation of the requested feature
+2. Unit tests covering the new functionality
+3. Documentation updates
+4. API documentation if applicable
+5. Migration scripts if needed
+"""
+
+# Template for refactoring requests
+REFACTORING_TEMPLATE = """
+{base_template}
+
+Refactoring Guidelines:
+1. Maintain existing functionality
+2. Improve code readability and maintainability
+3. Remove code duplication
+4. Apply SOLID principles
+5. Optimize performance where possible
+6. Ensure all tests pass after changes
+7. Document architectural decisions
+
+Expected Deliverables:
+1. Refactored code implementation
+2. Updated or new unit tests
+3. Performance benchmarks (before/after)
+4. Documentation of architectural changes
+5. Migration guide if needed
+"""
+
+# Template for bug fixes
+BUGFIX_TEMPLATE = """
+{base_template}
+
+Bug Fix Guidelines:
+1. Identify root cause of the issue
+2. Add regression tests to prevent recurrence
+3. Consider edge cases
+4. Document the fix and its implications
+5. Update error messages if applicable
+6. Add logging for better debugging
+7. Consider adding monitoring/alerts
+
+Expected Deliverables:
+1. Fixed implementation
+2. Regression tests
+3. Root cause analysis
+4. Documentation updates
+5. Monitoring improvements if needed
+"""
+
+def get_template(change_type: str, **kwargs) -> str:
+    """Get the appropriate template based on the change type.
+    
+    Args:
+        change_type: Type of change (feature, refactor, bugfix)
+        **kwargs: Additional template parameters
+    
+    Returns:
+        Formatted template string
+    """
+    # Format base template first
+    base = BASE_TEMPLATE.format(
+        change_type=change_type,
+        **kwargs
+    )
+    
+    # Select specific template based on change type
+    template_map = {
+        'feature': FEATURE_REQUEST_TEMPLATE,
+        'refactor': REFACTORING_TEMPLATE,
+        'bugfix': BUGFIX_TEMPLATE
+    }
+    
+    template = template_map.get(change_type.lower(), FEATURE_REQUEST_TEMPLATE)
+    
+    # Format the full template
+    return template.format(base_template=base)

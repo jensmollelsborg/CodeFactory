@@ -213,8 +213,15 @@
             
             <h1>Submit Your User Story</h1>
             <form id="userStoryForm" action="/submit" method="POST">
+                <label for="changeType">Change Type:</label>
+                <select id="changeType" name="changeType" required>
+                    <option value="feature">Feature Request</option>
+                    <option value="refactor">Refactoring</option>
+                    <option value="bugfix">Bug Fix</option>
+                </select>
+
                 <label for="userStory">User Story:</label>
-                <textarea id="userStory" name="userStory" rows="5" required></textarea>
+                <textarea id="userStory" name="userStory" rows="5" required placeholder="Describe your request..."></textarea>
 
                 <label for="priority">Priority Level:</label>
                 <select id="priority" name="priority" required>
@@ -224,7 +231,7 @@
                 </select>
 
                 <label for="notes">Additional Notes:</label>
-                <textarea id="notes" name="notes" rows="3"></textarea>
+                <textarea id="notes" name="notes" rows="3" placeholder="Any additional context or requirements..."></textarea>
 
                 <label for="repository">Repository:</label>
                 <div class="repo-select-container">
