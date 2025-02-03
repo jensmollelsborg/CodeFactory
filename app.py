@@ -43,6 +43,7 @@ from codefactory.services.auth import (
 )
 from codefactory.utils.validation import validate_user_story_input
 from codefactory.utils.logging import setup_logging, get_logger
+from codefactory.services.git_provider import get_provider
 
 # Load environment variables
 load_dotenv()
@@ -75,11 +76,18 @@ logger = get_logger(__name__)
 @app.route('/')
 def index():
     """Render the main page."""
-    authenticated = is_authenticated()
-    user = session.get('github_user', {}) if authenticated else None
-    return render_template('index.html', 
+    authenticated = session.get('authenticated', False)
+    user_info = None
+    
+    if authenticated:
+        if 'github_user' in session:
+            user_info = session['github_user']
+        elif 'bitbucket_user' in session:
+            user_info = session['bitbucket_user']
+    
+    return render_template('index.html',
                          authenticated=authenticated,
-                         user=user)
+                         user_info=user_info)
 
 @app.route('/auth/github')
 def github_login():
@@ -346,17 +354,29 @@ def generate_new_code(
     )
 
 @app.route('/api/repositories')
-@login_required
 def get_repositories():
-    """Get list of GitHub repositories accessible to the user."""
+    """API endpoint to fetch repositories."""
     try:
-        repositories = get_user_repositories()
-        return jsonify({"repositories": repositories})
-    except GitOperationError as e:
-        return jsonify({"error": str(e)}), 400
+        if not session.get('authenticated'):
+            return jsonify({'error': 'Not authenticated'}), 401
+
+        provider_name = session.get('git_provider')
+        if not provider_name:
+            return jsonify({'error': 'No git provider selected'}), 400
+
+        provider = get_provider(provider_name)
+        logger.info(f"Fetching repositories for provider: {provider_name}")
+        
+        # For Bitbucket, we don't need the token as it's stored in the provider
+        token = session.get('github_token', {}).get('access_token') if provider_name == 'github' else None
+        
+        repositories = provider.get_repositories(token)
+        logger.info(f"Successfully fetched {len(repositories)} repositories")
+        
+        return jsonify({'repositories': repositories})
     except Exception as e:
-        logger.error(f"Unexpected error fetching repositories: {str(e)}")
-        return jsonify({"error": "Internal server error"}), 500
+        logger.error(f"Error fetching repositories: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/stories', methods=['GET'])
 def view_stories():
@@ -377,6 +397,50 @@ def view_story(story_id):
         return jsonify({"error": "Story not found"}), 404
     except DatabaseError as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/auth/bitbucket')
+def bitbucket_login():
+    """Handle Bitbucket Server token authentication."""
+    try:
+        provider = get_provider('bitbucket')
+        # Store provider in session
+        session['git_provider'] = 'bitbucket'
+        
+        # Get user info to verify token works
+        user_info = provider.get_user_info(None)
+        session['bitbucket_user'] = user_info
+        session['authenticated'] = True
+        
+        return redirect(url_for('index'))
+    except Exception as e:
+        logger.error(f"Failed to authenticate with Bitbucket: {str(e)}")
+        return render_template('index.html', 
+                           error="Failed to authenticate with Bitbucket. Please check your access token.",
+                           authenticated=False)
+
+@app.route('/auth/bitbucket/callback')
+def bitbucket_callback():
+    """Handle Bitbucket OAuth callback."""
+    if 'error' in request.args:
+        return render_template('index.html',
+                            error=request.args.get('error_description', request.args['error']),
+                            authenticated=False)
+
+    try:
+        provider = get_provider('bitbucket')
+        token = provider.fetch_token(request.args['code'], request.url)
+        session['bitbucket_token'] = token
+        
+        # Get user info
+        user_data = provider.get_user_info(token['access_token'])
+        session['bitbucket_user'] = user_data
+        
+        return redirect(url_for('index'))
+    except Exception as e:
+        logger.error(f"Bitbucket authentication failed: {str(e)}")
+        return render_template('index.html',
+                            error=f"Authentication failed: {str(e)}",
+                            authenticated=False)
 
 if __name__ == '__main__':
     init_db()
