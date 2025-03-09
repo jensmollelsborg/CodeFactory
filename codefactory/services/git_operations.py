@@ -166,21 +166,62 @@ def clone_or_open_repo(repo_url: str, local_name: str = "default_repo") -> Tuple
         logger.info("Fetching latest changes from remote...")
         repo.remotes.origin.fetch()
 
-        # Get the default branch
-        logger.info(f"Default branch is: {base_branch}")
+        # Check if the repository is empty (no commits)
+        try:
+            repo.head.reference
+        except (TypeError, AttributeError):
+            logger.info("Empty repository detected. Initializing with main branch...")
+            # Create initial commit on main branch
+            readme_path = os.path.join(repo_path, 'README.md')
+            with open(readme_path, 'w') as f:
+                f.write(f"# {repo_name}\n\nInitialized by CodeFactory")
+            
+            repo.index.add(['README.md'])
+            repo.index.commit("Initial commit")
+            
+            # Create and checkout main branch
+            repo.git.branch('-M', 'main')
+            repo.remotes.origin.push('main')
+            return repo, repo_path
 
-        # Checkout and pull the default branch
-        repo.git.checkout(base_branch)
-        logger.info(f"Checked out {base_branch}")
+        # Get the default branch from remote
+        try:
+            default_branch = repo.remotes.origin.refs['HEAD'].ref.remote_head
+        except (IndexError, AttributeError):
+            default_branch = base_branch
+            logger.info(f"Could not determine default branch, using: {default_branch}")
+
+        # Try to checkout the default branch
+        try:
+            repo.git.checkout(default_branch)
+            logger.info(f"Checked out {default_branch}")
+        except git.exc.GitCommandError:
+            # If the branch doesn't exist locally but exists remotely
+            if f"origin/{default_branch}" in [ref.name for ref in repo.remotes.origin.refs]:
+                repo.git.checkout('-b', default_branch, f'origin/{default_branch}')
+            else:
+                # Create the branch if it doesn't exist
+                logger.info(f"Creating new {default_branch} branch...")
+                repo.git.checkout('-b', default_branch)
+                # Create initial commit if needed
+                if not repo.head.is_valid():
+                    readme_path = os.path.join(repo_path, 'README.md')
+                    with open(readme_path, 'w') as f:
+                        f.write(f"# {repo_name}\n\nInitialized by CodeFactory")
+                    repo.index.add(['README.md'])
+                    repo.index.commit("Initial commit")
+                repo.git.push('--set-upstream', 'origin', default_branch)
         
         # Pull latest changes
-        logger.info(f"Pulling latest changes from {base_branch}...")
-        repo.remotes.origin.pull(base_branch)
+        logger.info(f"Pulling latest changes from {default_branch}...")
+        repo.remotes.origin.pull(default_branch)
 
         return repo, repo_path
         
     except git.exc.GitCommandError as e:
         raise GitOperationError(f"Git operation failed: {str(e)}")
+    except Exception as e:
+        raise GitOperationError(f"Repository operation failed: {str(e)}")
 
 def create_unique_branch_and_push(
     repo: git.Repo,
