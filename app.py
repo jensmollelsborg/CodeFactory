@@ -1,6 +1,7 @@
 """Main application entry point."""
 
 import os
+import ssl
 from flask import (
     Flask, 
     render_template, 
@@ -54,14 +55,26 @@ app = Flask(__name__)
 # Server configuration
 HOST = os.getenv('SERVER_HOST', '0.0.0.0')
 PORT = int(os.getenv('SERVER_PORT', '5000'))
-PUBLIC_URL = os.getenv('PUBLIC_URL', f'http://{HOST}:{PORT}')
+PUBLIC_URL = os.getenv('PUBLIC_URL', f'https://{HOST}:{PORT}')
+SSL_CERT = os.path.join(os.path.dirname(__file__), 'ssl/cert.pem')
+SSL_KEY = os.path.join(os.path.dirname(__file__), 'ssl/key.pem')
+
+# Configure SSL context
+ssl_context = ssl.create_default_context()
+if os.path.exists(SSL_CERT) and os.path.exists(SSL_KEY):
+    ssl_context = (SSL_CERT, SSL_KEY)
+else:
+    logger.warning("SSL certificates not found. Using default SSL context.")
 
 # Configure server-side session
 app.config['SECRET_KEY'] = os.getenv('SESSION_SECRET', 'dev-secret-key')
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_FILE_DIR'] = os.path.join(os.path.dirname(__file__), 'flask_session')
-app.config['SESSION_PERMANENT'] = False
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
+app.config['SESSION_PERMANENT'] = True  # Make sessions permanent
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)  # Sessions last for 1 day
+app.config['SESSION_COOKIE_SECURE'] = True  # Only send cookies over HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access to session cookie
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Protect against CSRF
 
 # Ensure session directory exists
 os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
@@ -135,21 +148,26 @@ def github_callback():
             GITHUB_TOKEN_URL,
             client_secret=GITHUB_CLIENT_SECRET,
             authorization_response=callback_url,
-            verify=False  # For local development only
+            verify=ssl_context if isinstance(ssl_context, ssl.SSLContext) else True
         )
         
         logger.info("Token received, setting session")
         session['github_token'] = token
+        session['git_provider'] = 'github'  # Set the git provider
+        session['authenticated'] = True  # Set authentication state
         
-        # Get user info
+        # Get user info with proper SSL verification
         logger.info("Fetching user info")
-        user_response = github.get('https://api.github.com/user')
+        user_response = github.get('https://api.github.com/user', verify=ssl_context if isinstance(ssl_context, ssl.SSLContext) else True)
         if user_response.ok:
             user_data = user_response.json()
             session['github_user'] = user_data
             logger.info(f"Successfully authenticated user: {user_data.get('login')}")
         else:
             logger.warning(f"Failed to fetch user data: {user_response.status_code} - {user_response.text}")
+            return render_template('index.html',
+                                error="Failed to fetch user data from GitHub",
+                                authenticated=False)
         
         return redirect(url_for('index'))
         
@@ -444,6 +462,10 @@ def bitbucket_callback():
 
 if __name__ == '__main__':
     init_db()
-    # Create SSL context for HTTPS
-    ssl_context = ('cert.pem', 'key.pem')
-    app.run(host=HOST, port=PORT, debug=True, ssl_context=ssl_context)
+    # Run the application with SSL
+    app.run(
+        host=HOST,
+        port=PORT,
+        ssl_context=ssl_context,
+        debug=True
+    )

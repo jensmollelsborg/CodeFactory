@@ -127,11 +127,17 @@ def _generate_code_with_template(
     _export_messages_for_debug(messages, template_name)
     
     result = _make_openai_request(messages, max_tokens)
+    
+    # Clean the result before parsing JSON
+    cleaned_result = clean_code_block(result)
+    
     try:
-        return json.loads(result)
-    except json.JSONDecodeError:
-        logger.error(f"Failed to parse generated code: {result[:100]}...")
-        raise CodeGenerationError("Generated code is not valid JSON")
+        # Try to parse the cleaned result
+        return json.loads(cleaned_result)
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse generated code: {cleaned_result[:500]}...")
+        logger.error(f"JSON parse error: {str(e)}")
+        raise CodeGenerationError("Generated code is not valid JSON. Please try again.")
 
 def generate_code_for_user_story(user_story: str) -> Dict[str, str]:
     """

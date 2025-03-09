@@ -90,6 +90,44 @@ class GitHubProvider(GitProvider):
             'provider': 'github'
         } for repo in gh.get_user().get_repos()]
 
+    def create_pull_request(self, token: str, repo_url: str, branch: str, title: str, body: str) -> str:
+        """Create a pull request on GitHub.
+        
+        Args:
+            token: GitHub access token
+            repo_url: Repository URL
+            branch: Source branch name
+            title: Pull request title
+            body: Pull request description
+            
+        Returns:
+            URL of the created pull request
+        """
+        try:
+            gh = Github(token)
+            
+            # Extract owner and repo name from URL
+            parts = repo_url.strip('/').split('/')
+            owner = parts[-2]
+            repo_name = parts[-1]
+            
+            # Get the repository
+            repo = gh.get_repo(f"{owner}/{repo_name}")
+            
+            # Create the pull request
+            pr = repo.create_pull(
+                title=title,
+                body=body,
+                head=branch,
+                base='main'  # or use the repository's default branch
+            )
+            
+            return pr.html_url
+            
+        except Exception as e:
+            logger.error(f"Failed to create pull request: {str(e)}")
+            raise GitOperationError(f"Failed to create pull request: {str(e)}")
+
 class BitbucketServerProvider(GitProvider):
     def __init__(self):
         self.server_url = os.getenv('BITBUCKET_SERVER_URL').rstrip('/')

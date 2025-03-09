@@ -54,7 +54,14 @@ TEMPLATES = {
         4. Update docstrings and comments
         5. Only change what is necessary
         6. Return a JSON object mapping file paths to updated code content
-        7. Create new files if needed for better code organization""",
+        7. Create new files if needed for better code organization
+        8. IMPORTANT: Your response must be a valid JSON object with string keys and values
+        9. Do not include markdown code blocks or any other formatting
+        10. The response should be in this exact format:
+            {
+                "file/path/one.py": "content of file one",
+                "file/path/two.py": "content of file two"
+            }""",
         user_template="""
         Existing codebase (JSON object mapping file paths to code):
         {existing_code}
@@ -66,6 +73,7 @@ TEMPLATES = {
         Only change what is necessary.
         Return a JSON object where keys are file paths and values are the updated file contents.
         You may create new files if needed for better code organization.
+        Remember: Your response must be a valid JSON object without any markdown formatting.
         """
     )
 }
